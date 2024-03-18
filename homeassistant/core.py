@@ -166,6 +166,15 @@ class EventStateChangedData(TypedDict):
     new_state: State | None
 
 
+class EventStateReportedData(TypedDict):
+    """EventStateReported data."""
+
+    entity_id: str
+    old_last_reported: NotRequired[datetime.datetime]
+    old_state: NotRequired[State | None]
+    new_state: State | None
+
+
 # SOURCE_* are deprecated as of Home Assistant 2022.2, use ConfigSource instead
 _DEPRECATED_SOURCE_DISCOVERED = DeprecatedConstantEnum(
     ConfigSource.DISCOVERED, "2025.1"
