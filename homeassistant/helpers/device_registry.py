@@ -145,6 +145,8 @@ DEVICE_INFO_TYPES = {
 
 DEVICE_INFO_KEYS = set.union(*(itm for itm in DEVICE_INFO_TYPES.values()))
 
+LOW_PRIO_CONFIG_ENTRY_DOMAINS = {"matter", "mqtt"}
+
 
 class _EventDeviceRegistryUpdatedData_CreateRemove(TypedDict):
     """EventDeviceRegistryUpdated data for action type 'create' and 'remove'."""
@@ -766,7 +768,7 @@ class DeviceRegistry(BaseRegistry[dict[str, list[dict[str, Any]]]]):
 
         device = self.async_update_device(
             device.id,
-            add_config_entry_id=config_entry_id,
+            add_config_entry=config_entry,
             configuration_url=configuration_url,
             device_info_type=device_info_type,
             disabled_by=disabled_by,
@@ -793,6 +795,7 @@ class DeviceRegistry(BaseRegistry[dict[str, list[dict[str, Any]]]]):
         self,
         device_id: str,
         *,
+        add_config_entry: ConfigEntry | UndefinedType = UNDEFINED,
         add_config_entry_id: str | UndefinedType = UNDEFINED,
         area_id: str | None | UndefinedType = UNDEFINED,
         configuration_url: str | URL | None | UndefinedType = UNDEFINED,
@@ -822,6 +825,14 @@ class DeviceRegistry(BaseRegistry[dict[str, list[dict[str, Any]]]]):
         old_values: dict[str, Any] = {}  # Dict with old key/value pairs
 
         config_entries = old.config_entries
+
+        if add_config_entry_id is not UNDEFINED and add_config_entry is UNDEFINED:
+            config_entry = self.hass.config_entries.async_get_entry(add_config_entry_id)
+            if config_entry is None:
+                raise HomeAssistantError(
+                    f"Can't link device to unknown config entry {add_config_entry_id}"
+                )
+            add_config_entry = config_entry
 
         if merge_connections is not UNDEFINED and new_connections is not UNDEFINED:
             raise HomeAssistantError(
@@ -860,16 +871,17 @@ class DeviceRegistry(BaseRegistry[dict[str, list[dict[str, Any]]]]):
             area = ar.async_get(self.hass).async_get_or_create(suggested_area)
             area_id = area.id
 
-        if add_config_entry_id is not UNDEFINED:
+        if add_config_entry is not UNDEFINED:
             if (
                 device_info_type == "primary"
-                and add_config_entry_id != old.primary_config_entry
+                and add_config_entry.entry_id != old.primary_config_entry
+                and add_config_entry.domain not in LOW_PRIO_CONFIG_ENTRY_DOMAINS
             ):
-                new_values["primary_config_entry"] = add_config_entry_id
+                new_values["primary_config_entry"] = add_config_entry.entry_id
                 old_values["primary_config_entry"] = old.primary_config_entry
 
-            if add_config_entry_id not in old.config_entries:
-                config_entries = old.config_entries | {add_config_entry_id}
+            if add_config_entry.entry_id not in old.config_entries:
+                config_entries = old.config_entries | {add_config_entry.entry_id}
 
         if (
             remove_config_entry_id is not UNDEFINED
