@@ -167,7 +167,12 @@ class EventStateChangedData(TypedDict):
 
 
 class EventStateReportedData(TypedDict):
-    """EventStateReported data."""
+    """EventStateReported data.
+
+    A state reported event will have exactly one of old_last_reported or old_state.
+    If the event has old_state, the state has changed. If the event has
+    old_last_reported, the state did not change but was reported again.
+    """
 
     entity_id: str
     old_last_reported: NotRequired[datetime.datetime]
@@ -1617,7 +1622,10 @@ class EventBus:
             # EVENT_STATE_CHANGED
             self._listeners[EVENT_STATE_REPORTED].append(filterable_job)
             self._listeners[EVENT_STATE_CHANGED].append(filterable_job)
-            return functools.partial(
+            # mypy does infer the type of the event data is EventStateReportedData
+            # to not waste CPU cycles we ignore that instead of assigning the event
+            # data to a temporary variable
+            return functools.partial(  # type: ignore[misc]
                 self._async_remove_multiple_listeners,
                 (EVENT_STATE_REPORTED, EVENT_STATE_CHANGED),
                 filterable_job,
@@ -2287,7 +2295,10 @@ class StateMachine:
             old_last_reported = old_state.last_reported  # type: ignore[union-attr]
             old_state.last_reported = now  # type: ignore[union-attr]
             old_state.last_reported_timestamp = timestamp  # type: ignore[union-attr]
-            self._bus.async_fire_internal(
+            # mypy does infer the type of the event data is EventStateReportedData
+            # to not waste CPU cycles we ignore that instead of assigning the event
+            # data to a temporary variable
+            self._bus.async_fire_internal(  # type: ignore[misc]
                 EVENT_STATE_REPORTED,
                 {
                     "entity_id": entity_id,
